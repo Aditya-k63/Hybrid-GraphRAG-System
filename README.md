@@ -1,4 +1,4 @@
-# Enterprise Hybrid GraphRAG
+# Hybrid GraphRAG System
 
 Most RAG projects just do vector search. This one combines three retrieval methods — vector search, keyword search, and a knowledge graph — to answer questions that none of those approaches could handle alone.
 
@@ -78,7 +78,7 @@ LLM generates answer with citations
 ## Project structure
 
 ```
-Enterprise-Hybrid-GraphRAG/
+Hybrid-GraphRAG-System/
 ├── app/
 │   ├── main.py                  # FastAPI app + all routes
 │   ├── config.py                # Environment settings

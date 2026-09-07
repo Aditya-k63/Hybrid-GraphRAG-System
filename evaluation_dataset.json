@@ -1,0 +1,27 @@
+[
+  {
+    "question": "What is the main topic of this document?",
+    "contexts": [],
+    "ground_truth": ""
+  },
+  {
+    "question": "Who are the key people mentioned in this document?",
+    "contexts": [],
+    "ground_truth": ""
+  },
+  {
+    "question": "What organizations or companies are discussed?",
+    "contexts": [],
+    "ground_truth": ""
+  },
+  {
+    "question": "What are the main events or actions described?",
+    "contexts": [],
+    "ground_truth": ""
+  },
+  {
+    "question": "What is the relationship between the entities mentioned?",
+    "contexts": [],
+    "ground_truth": ""
+  }
+]

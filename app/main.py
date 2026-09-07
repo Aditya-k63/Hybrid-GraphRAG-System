@@ -421,6 +421,60 @@ async def evaluate_query(request: QueryRequest, raw_request: Request):
     )
 
 
+class BatchEvalRequest(BaseModel):
+    questions: list[str]
+    top_k: int = 5
+    use_graph: bool = True
+
+
+@app.post("/evaluate-batch")
+async def evaluate_batch_endpoint(request: BatchEvalRequest, raw_request: Request):
+    from app.auth import check_api_key
+    from app.models import EvaluatedQueryResponse
+    from app.config import settings
+    from app.retrieval.vector_search import vector_search
+    from app.retrieval.bm25_search import bm25_search
+    from app.retrieval.graph_search import graph_retrieve
+    from app.retrieval.hybrid import reciprocal_rank_fusion
+    from app.retrieval.reranker import rerank
+    from app.retrieval.query_classifier import classify_query
+    from app.generation.llm import generate_answer
+    from app.evaluation.ragas import evaluate_batch
+
+    check_api_key(raw_request)
+
+    questions = request.questions
+    if not questions:
+        raise HTTPException(status_code=400, detail="No questions provided")
+
+    answers = []
+    contexts_list = []
+
+    for q in questions:
+        classification = classify_query(q)
+        retrieval_type = classification["type"]
+        all_results = []
+        if retrieval_type in ("vector", "hybrid"):
+            all_results.append(vector_search(q, top_k=settings.VECTOR_TOP_K))
+        if retrieval_type in ("vector", "hybrid", "graph"):
+            all_results.append(bm25_search(q, top_k=settings.BM25_TOP_K))
+        if request.use_graph and retrieval_type in ("graph", "hybrid"):
+            gr = graph_retrieve(q)
+            if gr:
+                all_results.append(gr)
+        if not all_results:
+            all_results.append(vector_search(q, top_k=request.top_k))
+
+        fused = reciprocal_rank_fusion(all_results, k=settings.RRF_K)
+        chunks = rerank(q, fused[:20], top_k=request.top_k)
+        answer = generate_answer(q, chunks)
+        answers.append(answer)
+        contexts_list.append([c["content"] for c in chunks])
+
+    metrics = evaluate_batch(questions, answers, contexts_list)
+    return metrics
+
+
 @app.post("/memory/{session_id}/clear")
 def clear_memory(session_id: str, request: Request):
     from app.auth import check_api_key

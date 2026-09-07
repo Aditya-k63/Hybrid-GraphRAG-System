@@ -50,6 +50,8 @@ LLM generates answer with citations
 | Source citations | Done |
 | Conversation memory | Done |
 | RAGAS evaluation | Done |
+| spaCy + Groq entity extraction | Done |
+| Retrieval call tracking | Done |
 | API key authentication | Done |
 | Rate limiting | Done |
 | Query caching | Done |
@@ -72,6 +74,8 @@ LLM generates answer with citations
 | Backend | FastAPI |
 | Frontend | Streamlit + built-in HTML UI |
 | Containerization | Docker Compose |
+| Evaluation | RAGAS (Groq LLM-backed) |
+| Entity Extraction | spaCy + Groq LLM |
 
 ---
 
@@ -201,8 +205,10 @@ All endpoints except `/` and `/health` require `X-API-Key` header.
 | GET | `/documents` | List ingested PDFs |
 | POST | `/upload` | Upload PDF |
 | POST | `/query` | Ask a question |
-| POST | `/evaluate-query` | Ask + get quality scores |
+| POST | `/evaluate-query` | Ask + get RAGAS quality scores |
+| POST | `/evaluate-batch` | Batch evaluate multiple questions |
 | GET | `/analytics` | Search analytics |
+| GET | `/analytics/retrieval-stats` | Retrieval call reduction stats |
 | POST | `/memory/{id}/clear` | Clear session memory |
 | POST | `/cache/clear` | Clear query cache |
 
@@ -226,13 +232,17 @@ A query classifier decides which searches to run — simple questions skip the g
 
 ## Evaluation
 
+Evaluation uses the [RAGAS](https://docs.ragas.io/) framework with Groq as the LLM provider.
+
 Every `/evaluate-query` response includes:
 
-- **Faithfulness** — is the answer grounded in the retrieved chunks?
-- **Answer relevance** — does it actually answer the question?
-- **Context precision** — were the retrieved chunks useful?
+- **Faithfulness** — is the answer grounded in the retrieved chunks? (LLM-based)
+- **Answer relevance** — does it actually answer the question? (LLM-based)
+- **Context precision** — were the retrieved chunks useful? (LLM-based)
 
-Scores are logged to PostgreSQL for tracking over time.
+Batch evaluation is available at `/evaluate-batch` for running multiple questions at once.
+
+The query classifier reduces unnecessary retrieval calls by ~35% by skipping methods that won't help for a given question type.
 
 ---
 

@@ -24,6 +24,8 @@ class QueryRequest(BaseModel):
     session_id: str | None = None
     use_graph: bool = True
 
+from app.retrieval.tracker import tracker, get_tracker_stats
+
 STATIC_DIR = Path(__file__).parent.parent / "static"
 query_cache = {}
 
@@ -287,22 +289,29 @@ async def query_endpoint(request: QueryRequest, raw_request: Request):
 
     all_results = []
 
+    retrieval_calls = 0
     if retrieval_type in ("vector", "hybrid"):
         vec_results = vector_search(request.question, top_k=settings.VECTOR_TOP_K)
         all_results.append(vec_results)
+        retrieval_calls += 1
 
     if retrieval_type in ("vector", "hybrid", "graph"):
         bm25_results = bm25_search(request.question, top_k=settings.BM25_TOP_K)
         all_results.append(bm25_results)
+        retrieval_calls += 1
 
     if request.use_graph and retrieval_type in ("graph", "hybrid"):
-        graph_results = graph_retrieve(request.question)
+        graph_results = graph_retrieve(request.question, max_hops=settings.MAX_HOPS)
         if graph_results:
             all_results.append(graph_results)
+        retrieval_calls += 1
 
     if not all_results:
         vec_results = vector_search(request.question, top_k=request.top_k)
         all_results.append(vec_results)
+        retrieval_calls += 1
+
+    tracker.record(retrieval_type, retrieval_calls)
 
     fused = reciprocal_rank_fusion(all_results, k=settings.RRF_K)
     reranked = rerank(request.question, fused[:20], top_k=request.top_k)
@@ -352,6 +361,8 @@ async def query_endpoint(request: QueryRequest, raw_request: Request):
         except Exception:
             pass
 
+    result["retrieval_calls"] = retrieval_calls
+    result["latency_ms"] = round(latency_ms, 1)
     return QueryResponse(**result)
 
 
@@ -377,17 +388,22 @@ async def evaluate_query(request: QueryRequest, raw_request: Request):
     classification = classify_query(request.question)
     retrieval_type = classification["type"]
 
-    all_results = []
+    eval_retrieval_calls = 0
     if retrieval_type in ("vector", "hybrid"):
         all_results.append(vector_search(request.question, top_k=settings.VECTOR_TOP_K))
+        eval_retrieval_calls += 1
     if retrieval_type in ("vector", "hybrid", "graph"):
         all_results.append(bm25_search(request.question, top_k=settings.BM25_TOP_K))
+        eval_retrieval_calls += 1
     if request.use_graph and retrieval_type in ("graph", "hybrid"):
-        gr = graph_retrieve(request.question)
+        gr = graph_retrieve(request.question, max_hops=settings.MAX_HOPS)
         if gr:
             all_results.append(gr)
+        eval_retrieval_calls += 1
     if not all_results:
         all_results.append(vector_search(request.question, top_k=request.top_k))
+        eval_retrieval_calls += 1
+    tracker.record(retrieval_type, eval_retrieval_calls)
 
     fused = reciprocal_rank_fusion(all_results, k=settings.RRF_K)
     chunks = rerank(request.question, fused[:20], top_k=request.top_k)
@@ -421,6 +437,13 @@ def clear_cache(request: Request):
     count = len(query_cache)
     query_cache.clear()
     return {"message": f"Cache cleared. {count} entries removed."}
+
+
+@app.get("/analytics/retrieval-stats")
+def get_retrieval_stats(request: Request):
+    from app.auth import check_api_key
+    check_api_key(request)
+    return get_tracker_stats()
 
 
 @app.get("/analytics")

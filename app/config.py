@@ -39,6 +39,11 @@ class Settings(BaseSettings):
     GRAPH_TOP_K: int = 10
     RERANK_TOP_K: int = 5
     RRF_K: int = 60
+    MAX_HOPS: int = 3
+
+    # spaCy
+    USE_SPACY: bool = True
+    SPACY_MODEL: str = "en_core_web_sm"
 
     # Cache
     CACHE_MAX_SIZE: int = 200
@@ -50,6 +55,9 @@ class Settings(BaseSettings):
     # Upload
     MAX_FILE_SIZE: int = 10 * 1024 * 1024
     MAX_CHUNKS: int = 500
+
+    # Latency tracking
+    ENABLE_LATENCY_TRACKING: bool = True
 
     class Config:
         env_file = ".env"

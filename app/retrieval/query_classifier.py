@@ -24,6 +24,7 @@ Question: {query}"""
 def classify_query(query: str) -> dict:
     try:
         from app.config import settings
+        from app.retrieval.tracker import tracker
         client = get_groq()
         response = client.chat.completions.create(
             model=settings.LLM_MODEL,
@@ -41,7 +42,16 @@ def classify_query(query: str) -> dict:
         retrieval_type = result.get("type", "hybrid")
         if retrieval_type not in ("vector", "graph", "hybrid", "direct"):
             retrieval_type = "hybrid"
-        return {"type": retrieval_type, "reason": result.get("reason", "")}
+        tracker.record("classifier", 1)
+        return {"type": retrieval_type, "reason": result.get("reason", ""), "retrieval_type": retrieval_type}
     except Exception as e:
         logger.error(f"Query classification failed: {e}")
-        return {"type": "hybrid", "reason": "classification failed, defaulting to hybrid"}
+        return {"type": "hybrid", "reason": "classification failed, defaulting to hybrid", "retrieval_type": "hybrid"}
+
+
+def classify_and_count(query: str) -> dict:
+    """Classify query and track retrieval call reduction."""
+    result = classify_query(query)
+    from app.retrieval.tracker import tracker
+    tracker.record(result["type"], 1)
+    return result

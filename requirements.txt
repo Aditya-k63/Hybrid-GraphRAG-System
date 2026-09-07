@@ -16,3 +16,6 @@ sentencepiece>=0.1.99
 neo4j>=5.14.0
 pydantic-settings>=2.1.0
 pytest>=7.0.0
+ragas>=0.2.0
+spacy>=3.7.0
+prometheus-client>=0.20.0

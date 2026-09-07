@@ -189,6 +189,8 @@ def evaluate_batch(questions: list[str], answers: list[str], contexts_list: list
 
 def _fallback_evaluate(question: str, answer: str, contexts: list[str]) -> dict:
     """Fallback when ragas is unavailable — uses embedding similarity."""
+    if not question or not answer or not contexts:
+        return {"faithfulness": 0.0, "answer_relevance": 0.0, "context_precision": 0.0, "overall_score": 0.0}
     try:
         from app.ingestion.embedder import get_embedder
         import numpy as np

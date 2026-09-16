@@ -59,24 +59,21 @@ def _get_embeddings_for_ragas():
 def evaluate(question: str, answer: str, contexts: list[str], ground_truth: str = "") -> dict:
     """Evaluate answer quality using the RAGAS library with Groq as the LLM.
 
-    Args:
-        question: The user's question
-        answer: The generated answer
-        contexts: List of retrieved context chunks
-        ground_truth: Optional reference answer for context_recall
+    Falls back to semantic_similarity_evaluate() if RAGAS is unavailable.
+    Note: fallback scores are cosine similarities, NOT RAGAS metrics.
     """
     if not RAGAS_AVAILABLE:
-        logger.warning("ragas not installed, using fallback")
-        return _fallback_evaluate(question, answer, contexts)
+        logger.warning("ragas not installed, using semantic similarity fallback")
+        return semantic_similarity_evaluate(question, answer, contexts)
 
     if not _datasets_available:
-        logger.warning("datasets not installed, using fallback")
-        return _fallback_evaluate(question, answer, contexts)
+        logger.warning("datasets not installed, using semantic similarity fallback")
+        return semantic_similarity_evaluate(question, answer, contexts)
 
     llm = _get_llm_for_ragas()
     if llm is None:
-        logger.warning("LLM not available for RAGAS, using fallback")
-        return _fallback_evaluate(question, answer, contexts)
+        logger.warning("LLM not available for RAGAS, using semantic similarity fallback")
+        return semantic_similarity_evaluate(question, answer, contexts)
 
     try:
         from ragas import evaluate as ragas_evaluate
@@ -120,7 +117,7 @@ def evaluate(question: str, answer: str, contexts: list[str], ground_truth: str 
 
     except Exception as e:
         logger.error(f"RAGAS evaluation failed: {e}")
-        return _fallback_evaluate(question, answer, contexts)
+        return semantic_similarity_evaluate(question, answer, contexts)
 
 
 def evaluate_batch(questions: list[str], answers: list[str], contexts_list: list[list[str]]) -> dict:
@@ -187,8 +184,13 @@ def evaluate_batch(questions: list[str], answers: list[str], contexts_list: list
         return {"error": str(e)}
 
 
-def _fallback_evaluate(question: str, answer: str, contexts: list[str]) -> dict:
-    """Fallback when ragas is unavailable — uses embedding similarity."""
+def semantic_similarity_evaluate(question: str, answer: str, contexts: list[str]) -> dict:
+    """Fallback evaluator using embedding cosine similarity.
+
+    WARNING: This is NOT RAGAS faithfulness. It measures semantic similarity
+    between answer and context, which is a proxy heuristic only.
+    Use RAGAS evaluation for production quality measurements.
+    """
     if not question or not answer or not contexts:
         return {"faithfulness": 0.0, "answer_relevance": 0.0, "context_precision": 0.0, "overall_score": 0.0}
     try:
@@ -206,17 +208,17 @@ def _fallback_evaluate(question: str, answer: str, contexts: list[str]) -> dict:
         answer_emb = model.encode(answer)
         context = " ".join(contexts)
         context_emb = model.encode(context)
-        faithfulness = round(cos_sim(answer_emb, context_emb), 4)
+        answer_context_sim = round(cos_sim(answer_emb, context_emb), 4)
 
         q_emb = model.encode(question)
         a_emb = model.encode(answer)
-        relevance = round(cos_sim(q_emb, a_emb), 4)
+        question_answer_sim = round(cos_sim(q_emb, a_emb), 4)
 
         return {
-            "faithfulness": faithfulness,
-            "answer_relevance": relevance,
-            "context_precision": faithfulness,
-            "overall_score": round(faithfulness * 0.4 + relevance * 0.4 + faithfulness * 0.2, 4),
+            "faithfulness": answer_context_sim,
+            "answer_relevance": question_answer_sim,
+            "context_precision": answer_context_sim,
+            "overall_score": round(answer_context_sim * 0.4 + question_answer_sim * 0.4 + answer_context_sim * 0.2, 4),
         }
     except Exception:
         return {"faithfulness": 0.0, "answer_relevance": 0.0, "context_precision": 0.0, "overall_score": 0.0}

@@ -1,0 +1,20 @@
+{
+  "thresholds": {
+    "faithfulness": 0.7,
+    "answer_relevance": 0.6,
+    "context_precision": 0.5,
+    "overall_score": 0.6,
+    "classifier_accuracy": 0.5
+  },
+  "weights": {
+    "faithfulness": 0.4,
+    "answer_relevance": 0.4,
+    "context_precision": 0.2
+  },
+  "settings": {
+    "top_k": 5,
+    "use_graph": true,
+    "timeout_seconds": 120,
+    "base_url": "http://localhost:8000"
+  }
+}

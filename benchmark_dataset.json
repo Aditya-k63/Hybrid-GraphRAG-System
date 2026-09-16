@@ -1,0 +1,122 @@
+[
+  {
+    "id": 1,
+    "document": "attention_is_all_you_need.pdf",
+    "question": "What is the transformer architecture?",
+    "ground_truth": "The transformer is a neural network architecture entirely based on attention mechanisms, dispensing with recurrence and convolutions. It was introduced in 'Attention Is All You Need' (Vaswani et al., 2017) and uses self-attention to process input sequences in parallel.",
+    "expected_retrieval": "vector",
+    "question_type": "definitional"
+  },
+  {
+    "id": 2,
+    "document": "attention_is_all_you_need.pdf",
+    "question": "Who are the authors of the transformer paper?",
+    "ground_truth": "Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N. Gomez, Lukasz Kaiser, and Illia Polosukhin.",
+    "expected_retrieval": "vector",
+    "question_type": "factual"
+  },
+  {
+    "id": 3,
+    "document": "attention_is_all_you_need.pdf",
+    "question": "What problem does multi-head attention solve that single attention does not?",
+    "ground_truth": "Multi-head attention allows the model to jointly attend to information from different representation subspaces at different positions. Single attention can only learn one type of attention pattern, while multi-head attention learns multiple patterns simultaneously.",
+    "expected_retrieval": "vector",
+    "question_type": "explanatory"
+  },
+  {
+    "id": 4,
+    "document": "nasa_tech_report.pdf",
+    "question": "What is the relationship between NASA and the Jet Propulsion Laboratory?",
+    "ground_truth": "JPL is a federally funded research and development center managed by Caltech for NASA. NASA owns the facility and funds its operations, while Caltech manages day-to-day operations.",
+    "expected_retrieval": "graph",
+    "question_type": "relational"
+  },
+  {
+    "id": 5,
+    "document": "nasa_tech_report.pdf",
+    "question": "Which missions were launched by JPL and what were their objectives?",
+    "ground_truth": "Key JPL missions include Voyager (outer planets exploration), Mars rovers Spirit and Opportunity (Mars surface exploration), Cassini (Saturn study), and Juno (Jupiter study).",
+    "expected_retrieval": "graph",
+    "question_type": "multi_hop"
+  },
+  {
+    "id": 6,
+    "document": "company_annual_report.pdf",
+    "question": "What was the company's revenue growth compared to the previous year?",
+    "ground_truth": "Revenue increased from $45.2 billion in 2022 to $52.8 billion in 2023, representing a 16.8% year-over-year growth.",
+    "expected_retrieval": "vector",
+    "question_type": "factual"
+  },
+  {
+    "id": 7,
+    "document": "company_annual_report.pdf",
+    "question": "How does the company's acquisition of Startup X affect its cloud computing division?",
+    "ground_truth": "The acquisition of Startup X for $2.1 billion expanded the cloud division's AI capabilities, adding 150+ engineers and proprietary machine learning infrastructure that increased cloud AI service revenue by 34%.",
+    "expected_retrieval": "hybrid",
+    "question_type": "multi_hop"
+  },
+  {
+    "id": 8,
+    "document": "medical_paper.pdf",
+    "question": "What is CRISPR-Cas9 and how does it work?",
+    "ground_truth": "CRISPR-Cas9 is a gene editing technology that uses a guide RNA to direct the Cas9 enzyme to a specific DNA sequence, where it creates a double-strand break. The cell's repair mechanisms then modify the gene, allowing for precise genetic modifications.",
+    "expected_retrieval": "vector",
+    "question_type": "definitional"
+  },
+  {
+    "id": 9,
+    "document": "medical_paper.pdf",
+    "question": "What are the ethical concerns raised by the relationship between gene editing and clinical trials?",
+    "ground_truth": "Key concerns include: germline editing (heritable changes), informed consent for experimental treatments, equitable access to expensive therapies, potential off-target effects, and the distinction between therapeutic and enhancement applications.",
+    "expected_retrieval": "hybrid",
+    "question_type": "relational"
+  },
+  {
+    "id": 10,
+    "document": "wikipedia_ai.pdf",
+    "question": "How did Alan Turing's work influence the development of modern artificial intelligence?",
+    "ground_truth": "Turing's 1950 paper 'Computing Machinery and Intelligence' proposed the Turing Test and laid theoretical groundwork for machine intelligence. His concept of a universal computing machine influenced the design of computers that could run AI algorithms.",
+    "expected_retrieval": "graph",
+    "question_type": "multi_hop"
+  },
+  {
+    "id": 11,
+    "document": "wikipedia_ai.pdf",
+    "question": "What is the difference between narrow AI and general AI?",
+    "ground_truth": "Narrow AI (ANI) is designed for specific tasks like image recognition or language translation. General AI (AGI) would have human-level cognitive abilities across all domains, capable of learning and reasoning about any intellectual task.",
+    "expected_retrieval": "vector",
+    "question_type": "definitional"
+  },
+  {
+    "id": 12,
+    "document": "legal_contract.pdf",
+    "question": "What are the termination clauses in this agreement?",
+    "ground_truth": "The agreement can be terminated: (1) by mutual written consent, (2) with 90 days written notice by either party, (3) immediately upon material breach that remains uncured for 30 days after notice, or (4) upon bankruptcy or insolvency of either party.",
+    "expected_retrieval": "vector",
+    "question_type": "factual"
+  },
+  {
+    "id": 13,
+    "document": "legal_contract.pdf",
+    "question": "How do the liability limitations relate to the indemnification obligations?",
+    "ground_truth": "Section 8 limits total liability to fees paid in the preceding 12 months, while Section 9 requires each party to indemnify the other for third-party claims. The liability cap does not apply to indemnification obligations for IP infringement or gross negligence.",
+    "expected_retrieval": "hybrid",
+    "question_type": "relational"
+  },
+  {
+    "id": 14,
+    "document": "cooking_book.pdf",
+    "question": "What is the Maillard reaction and why is it important in cooking?",
+    "ground_truth": "The Maillard reaction is a chemical reaction between amino acids and reducing sugars that occurs at temperatures above 140C (280F). It creates hundreds of flavor compounds and the brown color on seared meats, baked bread, and roasted coffee.",
+    "expected_retrieval": "vector",
+    "question_type": "definitional"
+  },
+  {
+    "id": 15,
+    "document": "history_textbook.pdf",
+    "question": "What chain of events led from the assassination of Archduke Franz Ferdinand to World War I?",
+    "ground_truth": "The assassination triggered Austria-Hungary's ultimatum to Serbia, which led to Serbia's partial rejection. Austria-Hungary declared war on Serbia, activating the alliance system: Russia mobilized to support Serbia, Germany supported Austria-Hungary, France allied with Russia, and Britain entered when Germany invaded Belgium.",
+    "expected_retrieval": "graph",
+    "question_type": "multi_hop"
+  }
+]

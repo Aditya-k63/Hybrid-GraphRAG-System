@@ -1,5 +1,7 @@
-import logging
 import json
+import logging
+import re
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -21,31 +23,70 @@ Return ONLY a JSON object: {{"type": "...", "reason": "..."}}
 Question: {query}"""
 
 
+def _parse_json_response(content: str) -> dict:
+    """Parse a classifier response defensively and always return a valid classification."""
+    text = (content or "").strip()
+    if text.startswith("```"):
+        text = re.sub(r"^```(?:json)?\s*", "", text, flags=re.IGNORECASE)
+        text = re.sub(r"\s*```$", "", text)
+
+    match = re.search(r"\{.*\}", text, flags=re.DOTALL)
+    if match:
+        text = match.group(0)
+
+    try:
+        result = json.loads(text)
+        if not isinstance(result, dict):
+            raise ValueError("classifier response is not a JSON object")
+    except Exception:
+        return {"type": "hybrid", "reason": "invalid model output", "retrieval_type": "hybrid"}
+
+    retrieval_type = result.get("type", "hybrid")
+    if retrieval_type not in ("vector", "graph", "hybrid", "direct"):
+        retrieval_type = "hybrid"
+    return {
+        "type": retrieval_type,
+        "reason": result.get("reason", ""),
+        "retrieval_type": retrieval_type,
+    }
+
+
 def classify_query(query: str) -> dict:
     try:
         from app.config import settings
         from app.retrieval.tracker import tracker
+
+        if not settings.ENABLE_LIVE_LLM:
+            return {"type": "hybrid", "reason": "LLM disabled in CI", "retrieval_type": "hybrid"}
+
         client = get_groq()
-        response = client.chat.completions.create(
-            model=settings.LLM_MODEL,
-            messages=[{
-                "role": "user",
-                "content": CLASSIFY_PROMPT.format(query=query),
-            }],
-            temperature=0.1,
-            max_tokens=100,
-        )
-        content = response.choices[0].message.content.strip()
-        if content.startswith("```"):
-            content = content.split("```")[1]
-        result = json.loads(content)
-        retrieval_type = result.get("type", "hybrid")
-        if retrieval_type not in ("vector", "graph", "hybrid", "direct"):
-            retrieval_type = "hybrid"
-        tracker.record("classifier", 1)
-        return {"type": retrieval_type, "reason": result.get("reason", ""), "retrieval_type": retrieval_type}
+        for attempt in range(3):
+            try:
+                response = client.chat.completions.create(
+                    model=settings.LLM_MODEL,
+                    messages=[{
+                        "role": "user",
+                        "content": CLASSIFY_PROMPT.format(query=query),
+                    }],
+                    temperature=0.1,
+                    max_tokens=100,
+                )
+                content = (response.choices[0].message.content or "").strip()
+                result = _parse_json_response(content)
+                tracker.record("classifier", 1)
+                return result
+            except Exception as e:
+                status = getattr(e, "status_code", None)
+                if status == 429 or "429" in str(e):
+                    if attempt < 2:
+                        time.sleep(2 ** attempt)
+                        continue
+                logger.error(f"Query classification failed: {e}")
+                return {"type": "hybrid", "reason": "classification failed, defaulting to hybrid", "retrieval_type": "hybrid"}
+
+        return {"type": "hybrid", "reason": "classification retries exhausted", "retrieval_type": "hybrid"}
     except Exception as e:
-        logger.error(f"Query classification failed: {e}")
+        logger.error(f"Query classification setup failed: {e}")
         return {"type": "hybrid", "reason": "classification failed, defaulting to hybrid", "retrieval_type": "hybrid"}
 
 

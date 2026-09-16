@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     # Groq
     GROQ_API_KEY: str = ""
     LLM_MODEL: str = "openai/gpt-oss-20b"
+    ENABLE_LIVE_LLM: bool = True
 
     # Auth
     API_KEY: str = "change-me-in-production"

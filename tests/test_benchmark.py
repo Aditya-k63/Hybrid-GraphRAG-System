@@ -11,6 +11,7 @@ Run:   python -m pytest tests/test_benchmark.py -v
 import json
 import os
 import sys
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -72,55 +73,54 @@ def get_base_url():
     return os.getenv("BASE_URL", config["settings"]["base_url"])
 
 
-def query_system(question: str, base_url: str, api_key: str) -> dict:
+def _default_result():
+    return {
+        "faithfulness": 0.0,
+        "answer_relevance": 0.0,
+        "context_precision": 0.0,
+        "overall_score": 0.0,
+        "retrieval_type": "unknown",
+    }
+
+
+def query_system(question: str, base_url: str, api_key: str, max_retries: int = 3) -> dict:
     import requests
 
     config = load_config()
     timeout = config["settings"].get("timeout_seconds", 120)
-    try:
-        resp = requests.post(
-            f"{base_url}/evaluate-query",
-            json={
-                "question": question,
-                "top_k": config["settings"]["top_k"],
-                "use_graph": config["settings"]["use_graph"],
-            },
-            headers={"X-API-Key": api_key},
-            timeout=timeout,
-        )
-        if resp.status_code == 500:
-            print(f"\n  WARNING: 500 error for question: {question[:50]}...")
-            print(f"  Response: {resp.text[:200]}")
-            return {
-                "faithfulness": 0.0,
-                "answer_relevance": 0.0,
-                "context_precision": 0.0,
-                "overall_score": 0.0,
-                "retrieval_type": "unknown",
-                "error": "500 Internal Server Error",
-            }
-        resp.raise_for_status()
-        return resp.json()
-    except requests.exceptions.ConnectionError:
-        print(f"\n  WARNING: Connection failed for question: {question[:50]}...")
-        return {
-            "faithfulness": 0.0,
-            "answer_relevance": 0.0,
-            "context_precision": 0.0,
-            "overall_score": 0.0,
-            "retrieval_type": "unknown",
-            "error": "Connection failed",
-        }
-    except Exception as e:
-        print(f"\n  WARNING: Error for question: {question[:50]}... - {e}")
-        return {
-            "faithfulness": 0.0,
-            "answer_relevance": 0.0,
-            "context_precision": 0.0,
-            "overall_score": 0.0,
-            "retrieval_type": "unknown",
-            "error": str(e),
-        }
+    fallback = _default_result()
+
+    for attempt in range(max_retries):
+        try:
+            resp = requests.post(
+                f"{base_url}/evaluate-query",
+                json={
+                    "question": question,
+                    "top_k": config["settings"]["top_k"],
+                    "use_graph": config["settings"]["use_graph"],
+                },
+                headers={"X-API-Key": api_key},
+                timeout=timeout,
+            )
+            if resp.status_code == 200:
+                return resp.json()
+            if resp.status_code in (500, 429, 503):
+                wait = 2 ** (attempt + 1)
+                print(f"\n  Retry {attempt + 1}/{max_retries}: got {resp.status_code}, waiting {wait}s...")
+                time.sleep(wait)
+                continue
+            resp.raise_for_status()
+        except requests.exceptions.ConnectionError:
+            wait = 2 ** (attempt + 1)
+            print(f"\n  Retry {attempt + 1}/{max_retries}: connection failed, waiting {wait}s...")
+            time.sleep(wait)
+            continue
+        except Exception as e:
+            print(f"\n  WARNING: {e}")
+            return fallback
+
+    print(f"\n  FAILED after {max_retries} retries for: {question[:50]}...")
+    return fallback
 
 
 def save_results(results: dict):
@@ -166,7 +166,9 @@ def _run_benchmark() -> dict:
     per_question = []
     errors = []
 
-    for item in benchmark:
+    for i, item in enumerate(benchmark):
+        if i > 0:
+            time.sleep(2)
         result = query_system(item["question"], base_url, api_key)
         for key in scores:
             scores[key].append(result.get(key, 0.0))
@@ -250,10 +252,12 @@ def test_no_regression_classifier_accuracy():
 
     correct = 0
     total = 0
-    for item in benchmark:
+    for i, item in enumerate(benchmark):
         expected = item.get("expected_retrieval")
         if not expected:
             continue
+        if i > 0:
+            time.sleep(2)
         result = query_system(item["question"], base_url, api_key)
         if result.get("retrieval_type") == expected:
             correct += 1

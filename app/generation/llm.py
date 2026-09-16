@@ -1,5 +1,5 @@
 import logging
-import json
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +20,23 @@ Rules:
 - When citing sources, reference the document name if available."""
 
 
+def _fallback_answer(query: str, chunks: list[dict]) -> str:
+    """Deterministic answer used by CI and when the external LLM is unavailable."""
+    if not chunks:
+        return "I don't have enough information to answer that."
+    return "Based on the retrieved context:\n\n" + "\n\n".join(
+        f"[{i}] {chunk.get('content', '').strip()}"
+        for i, chunk in enumerate(chunks, 1)
+        if chunk.get("content")
+    )
+
+
 def generate_answer(query: str, chunks: list[dict], conversation_history: list[dict] = None) -> str:
+    from app.config import settings
+
+    if not settings.ENABLE_LIVE_LLM:
+        return _fallback_answer(query, chunks)
+
     client = get_groq()
 
     context_parts = []
@@ -31,7 +47,6 @@ def generate_answer(query: str, chunks: list[dict], conversation_history: list[d
         context_parts.append(f"[{i}]{source}\n{chunk['content']}")
 
     context = "\n\n".join(context_parts)
-
     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
 
     if conversation_history:
@@ -43,15 +58,27 @@ def generate_answer(query: str, chunks: list[dict], conversation_history: list[d
         "content": f"Context:\n{context}\n\nQuestion: {query}\n\nAnswer:",
     })
 
-    try:
-        from app.config import settings
-        response = client.chat.completions.create(
-            model=settings.LLM_MODEL,
-            messages=messages,
-            temperature=0.2,
-            max_tokens=1024,
-        )
-        return response.choices[0].message.content
-    except Exception as e:
-        logger.error(f"LLM generation failed: {e}")
-        return "Failed to generate answer. Please try again."
+    for attempt in range(3):
+        try:
+            response = client.chat.completions.create(
+                model=settings.LLM_MODEL,
+                messages=messages,
+                temperature=0.2,
+                max_tokens=1024,
+            )
+            content = response.choices[0].message.content
+            if content and content.strip():
+                return content.strip()
+            logger.warning("LLM returned an empty response")
+        except Exception as e:
+            status = getattr(e, "status_code", None)
+            if status == 429 or "429" in str(e):
+                if attempt < 2:
+                    wait = 2 ** attempt
+                    logger.warning(f"LLM rate limited; retrying in {wait}s")
+                    time.sleep(wait)
+                    continue
+            logger.error(f"LLM generation failed: {e}")
+            return _fallback_answer(query, chunks)
+
+    return _fallback_answer(query, chunks)

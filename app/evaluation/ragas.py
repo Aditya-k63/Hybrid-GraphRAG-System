@@ -56,24 +56,28 @@ def _get_embeddings_for_ragas():
             return None
 
 
-def evaluate(question: str, answer: str, contexts: list[str], ground_truth: str = "") -> dict:
-    """Evaluate answer quality using the RAGAS library with Groq as the LLM.
+def _fallback_evaluate(question: str, answer: str, contexts: list[str]) -> dict:
+    """Backward-compatible name for the semantic-similarity fallback evaluator.
 
-    Falls back to semantic_similarity_evaluate() if RAGAS is unavailable.
-    Note: fallback scores are cosine similarities, NOT RAGAS metrics.
+    This is a heuristic proxy and is NOT equivalent to RAGAS faithfulness.
     """
+    return semantic_similarity_evaluate(question, answer, contexts)
+
+
+def evaluate(question: str, answer: str, contexts: list[str], ground_truth: str = "") -> dict:
+    """Evaluate answer quality using RAGAS, with a semantic-similarity fallback."""
     if not RAGAS_AVAILABLE:
         logger.warning("ragas not installed, using semantic similarity fallback")
-        return semantic_similarity_evaluate(question, answer, contexts)
+        return _fallback_evaluate(question, answer, contexts)
 
     if not _datasets_available:
         logger.warning("datasets not installed, using semantic similarity fallback")
-        return semantic_similarity_evaluate(question, answer, contexts)
+        return _fallback_evaluate(question, answer, contexts)
 
     llm = _get_llm_for_ragas()
     if llm is None:
         logger.warning("LLM not available for RAGAS, using semantic similarity fallback")
-        return semantic_similarity_evaluate(question, answer, contexts)
+        return _fallback_evaluate(question, answer, contexts)
 
     try:
         from ragas import evaluate as ragas_evaluate
@@ -88,14 +92,7 @@ def evaluate(question: str, answer: str, contexts: list[str], ground_truth: str 
             data["ground_truth"] = [ground_truth]
 
         dataset = Dataset.from_dict(data)
-
-        metrics_to_use = [faithfulness, answer_relevancy, context_precision]
-
-        result = ragas_evaluate(
-            dataset=dataset,
-            metrics=metrics_to_use,
-            llm=llm,
-        )
+        result = ragas_evaluate(dataset=dataset, metrics=[faithfulness, answer_relevancy, context_precision], llm=llm)
 
         row = result[0]
         scores = {}
@@ -114,17 +111,13 @@ def evaluate(question: str, answer: str, contexts: list[str], ground_truth: str 
                 4,
             ),
         }
-
     except Exception as e:
         logger.error(f"RAGAS evaluation failed: {e}")
-        return semantic_similarity_evaluate(question, answer, contexts)
+        return _fallback_evaluate(question, answer, contexts)
 
 
 def evaluate_batch(questions: list[str], answers: list[str], contexts_list: list[list[str]]) -> dict:
-    """Evaluate a batch of Q&A pairs using RAGAS.
-
-    Returns aggregate metrics across all questions.
-    """
+    """Evaluate a batch of Q&A pairs using RAGAS."""
     if not RAGAS_AVAILABLE or not _datasets_available:
         return {"error": "ragas or datasets not installed"}
 
@@ -141,18 +134,13 @@ def evaluate_batch(questions: list[str], answers: list[str], contexts_list: list
             "answer": answers,
             "contexts": contexts_list,
         })
-
         result = ragas_evaluate(
             dataset=dataset,
             metrics=[faithfulness, answer_relevancy, context_precision],
             llm=llm,
         )
 
-        scores = {
-            "faithfulness": [],
-            "answer_relevancy": [],
-            "context_precision": [],
-        }
+        scores = {"faithfulness": [], "answer_relevancy": [], "context_precision": []}
         for row in result:
             for key in scores:
                 val = row.get(key, 0.0)
@@ -189,7 +177,6 @@ def semantic_similarity_evaluate(question: str, answer: str, contexts: list[str]
 
     WARNING: This is NOT RAGAS faithfulness. It measures semantic similarity
     between answer and context, which is a proxy heuristic only.
-    Use RAGAS evaluation for production quality measurements.
     """
     if not question or not answer or not contexts:
         return {"faithfulness": 0.0, "answer_relevance": 0.0, "context_precision": 0.0, "overall_score": 0.0}
@@ -209,7 +196,6 @@ def semantic_similarity_evaluate(question: str, answer: str, contexts: list[str]
         context = " ".join(contexts)
         context_emb = model.encode(context)
         answer_context_sim = round(cos_sim(answer_emb, context_emb), 4)
-
         q_emb = model.encode(question)
         a_emb = model.encode(answer)
         question_answer_sim = round(cos_sim(q_emb, a_emb), 4)

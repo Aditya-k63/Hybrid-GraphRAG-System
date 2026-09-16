@@ -99,8 +99,9 @@ jobs:
           python scripts/seed_benchmark_data.py
       - name: Start API server
         run: |
-          uvicorn app.main:app --host 0.0.0.0 --port 8000 &
-          sleep 10
+          uvicorn app.main:app --host 0.0.0.0 --port 8000 > server.log 2>&1 &
+          sleep 15
+          curl -s http://localhost:8000/health || echo "Server not ready yet"
         env:
           DB_HOST: localhost
           DB_PORT: 5432
@@ -112,11 +113,17 @@ jobs:
           NEO4J_PASSWORD: password
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           API_KEY: test-key
+          RATE_LIMIT_REQUESTS: "9999"
       - name: Run benchmark (regression check)
         env:
           BASE_URL: http://localhost:8000
           API_KEY: test-key
-        run: python -m pytest tests/test_benchmark.py -v --tb=short
+        run: python -m pytest tests/test_benchmark.py -v --tb=short -x
+      - name: Dump server logs
+        if: always()
+        run: |
+          echo "=== SERVER LOGS ==="
+          cat server.log || true
       - name: Upload benchmark results
         if: always()
         uses: actions/upload-artifact@v4

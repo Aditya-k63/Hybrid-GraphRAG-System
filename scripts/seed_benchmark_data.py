@@ -3,6 +3,9 @@ Seed benchmark data into PostgreSQL for CI/CD testing.
 
 Creates synthetic document chunks that match the benchmark questions
 so the RAG system has data to search against.
+
+Uses the SAME embedding model as production (all-MiniLM-L6-v2)
+to ensure vector search quality is realistic.
 """
 
 import json
@@ -113,11 +116,16 @@ def seed():
         conn.close()
         return
 
-    # Generate simple embeddings (random vectors for CI/CD testing)
-    import numpy as np
+    # Generate REAL embeddings using the same model as production
+    print("Loading embedding model (all-MiniLM-L6-v2)...")
+    from sentence_transformers import SentenceTransformer
+    model = SentenceTransformer("all-MiniLM-L6-v2")
 
-    for i, chunk in enumerate(TEST_CHUNKS):
-        embedding = np.random.randn(384).astype(float).tolist()
+    contents = [chunk["content"] for chunk in TEST_CHUNKS]
+    print(f"Encoding {len(contents)} chunks...")
+    embeddings = model.encode(contents, show_progress_bar=False).tolist()
+
+    for i, (chunk, embedding) in enumerate(zip(TEST_CHUNKS, embeddings)):
         metadata = {"source": chunk["source"], "chunk_index": i}
         cur.execute(
             "INSERT INTO document_sections (content, meta, embedding) VALUES (%s, %s, %s)",
@@ -127,7 +135,7 @@ def seed():
     conn.commit()
     cur.close()
     conn.close()
-    print(f"Seeded {len(TEST_CHUNKS)} chunks across {len(set(c['source'] for c in TEST_CHUNKS))} documents")
+    print(f"Seeded {len(TEST_CHUNKS)} chunks with real embeddings across {len(set(c['source'] for c in TEST_CHUNKS))} documents")
 
 
 if __name__ == "__main__":

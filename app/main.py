@@ -388,6 +388,7 @@ async def evaluate_query(request: QueryRequest, raw_request: Request):
     classification = classify_query(request.question)
     retrieval_type = classification["type"]
 
+    all_results = []
     eval_retrieval_calls = 0
     if retrieval_type in ("vector", "hybrid"):
         all_results.append(vector_search(request.question, top_k=settings.VECTOR_TOP_K))

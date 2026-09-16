@@ -4,14 +4,6 @@ RAG Benchmark Regression Tests
 Compares current system metrics against a saved baseline to detect regressions.
 Used in CI/CD to ensure quality doesn't degrade over time.
 
-Flow:
-  1. Load benchmark dataset
-  2. Run all questions through the system
-  3. Calculate metrics (faithfulness, relevance, precision)
-  4. Compare against baseline scores
-  5. Fail if any metric drops beyond tolerance
-  6. Save results for baseline update
-
 Setup: Requires PostgreSQL, Neo4j, and Groq API key.
 Run:   python -m pytest tests/test_benchmark.py -v
 """
@@ -85,18 +77,50 @@ def query_system(question: str, base_url: str, api_key: str) -> dict:
 
     config = load_config()
     timeout = config["settings"].get("timeout_seconds", 120)
-    resp = requests.post(
-        f"{base_url}/evaluate-query",
-        json={
-            "question": question,
-            "top_k": config["settings"]["top_k"],
-            "use_graph": config["settings"]["use_graph"],
-        },
-        headers={"X-API-Key": api_key},
-        timeout=timeout,
-    )
-    resp.raise_for_status()
-    return resp.json()
+    try:
+        resp = requests.post(
+            f"{base_url}/evaluate-query",
+            json={
+                "question": question,
+                "top_k": config["settings"]["top_k"],
+                "use_graph": config["settings"]["use_graph"],
+            },
+            headers={"X-API-Key": api_key},
+            timeout=timeout,
+        )
+        if resp.status_code == 500:
+            print(f"\n  WARNING: 500 error for question: {question[:50]}...")
+            print(f"  Response: {resp.text[:200]}")
+            return {
+                "faithfulness": 0.0,
+                "answer_relevance": 0.0,
+                "context_precision": 0.0,
+                "overall_score": 0.0,
+                "retrieval_type": "unknown",
+                "error": "500 Internal Server Error",
+            }
+        resp.raise_for_status()
+        return resp.json()
+    except requests.exceptions.ConnectionError:
+        print(f"\n  WARNING: Connection failed for question: {question[:50]}...")
+        return {
+            "faithfulness": 0.0,
+            "answer_relevance": 0.0,
+            "context_precision": 0.0,
+            "overall_score": 0.0,
+            "retrieval_type": "unknown",
+            "error": "Connection failed",
+        }
+    except Exception as e:
+        print(f"\n  WARNING: Error for question: {question[:50]}... - {e}")
+        return {
+            "faithfulness": 0.0,
+            "answer_relevance": 0.0,
+            "context_precision": 0.0,
+            "overall_score": 0.0,
+            "retrieval_type": "unknown",
+            "error": str(e),
+        }
 
 
 def save_results(results: dict):
@@ -140,11 +164,14 @@ def _run_benchmark() -> dict:
 
     scores = {"faithfulness": [], "answer_relevance": [], "context_precision": [], "overall_score": []}
     per_question = []
+    errors = []
 
     for item in benchmark:
         result = query_system(item["question"], base_url, api_key)
         for key in scores:
             scores[key].append(result.get(key, 0.0))
+        if result.get("error"):
+            errors.append({"question": item["question"], "error": result["error"]})
         per_question.append({
             "id": item["id"],
             "question": item["question"],
@@ -157,7 +184,13 @@ def _run_benchmark() -> dict:
         })
 
     avg = {key: sum(vals) / len(vals) if vals else 0.0 for key, vals in scores.items()}
-    return {"avg": avg, "per_question": per_question, "raw": scores}
+
+    if errors:
+        print(f"\n  ERRORS ({len(errors)}/{len(benchmark)}):")
+        for e in errors:
+            print(f"    - {e['question'][:50]}... -> {e['error']}")
+
+    return {"avg": avg, "per_question": per_question, "raw": scores, "errors": errors}
 
 
 # ──────────────────────────────────────────────
@@ -241,6 +274,7 @@ def test_save_results():
         "timestamp": datetime.utcnow().isoformat() + "Z",
         "metrics": results["avg"],
         "per_question": results["per_question"],
+        "errors": results.get("errors", []),
     }
     save_results(output)
     print(f"\n  Results saved to {RESULTS_PATH}")

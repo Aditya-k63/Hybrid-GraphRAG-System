@@ -69,6 +69,7 @@ jobs:
           NEO4J_PASSWORD: password
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           API_KEY: test-key
+          ENABLE_LIVE_LLM: "false"
         run: |
           python -c "
           import psycopg2
@@ -97,6 +98,7 @@ jobs:
           NEO4J_URI: bolt://localhost:7687
           NEO4J_USER: neo4j
           NEO4J_PASSWORD: password
+          ENABLE_LIVE_LLM: "false"
         run: python scripts/seed_benchmark_data.py
       - name: Start API server
         env:
@@ -112,6 +114,7 @@ jobs:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           API_KEY: test-key
           RATE_LIMIT_REQUESTS: "9999"
+          ENABLE_LIVE_LLM: "false"
         run: |
           uvicorn app.main:app --host 0.0.0.0 --port 8000 > server.log 2>&1 &
           for i in {1..30}; do
@@ -128,6 +131,7 @@ jobs:
         env:
           BASE_URL: http://localhost:8000
           API_KEY: test-key
+          ENABLE_LIVE_LLM: "false"
         run: python -m pytest tests/test_benchmark.py -v --tb=short -x
       - name: Dump server logs
         if: always()

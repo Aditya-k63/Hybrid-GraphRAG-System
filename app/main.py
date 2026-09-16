@@ -407,6 +407,19 @@ async def evaluate_query(request: QueryRequest, raw_request: Request):
     tracker.record(retrieval_type, eval_retrieval_calls)
 
     fused = reciprocal_rank_fusion(all_results, k=settings.RRF_K)
+
+    if not fused:
+        return EvaluatedQueryResponse(
+            question=request.question,
+            answer="No relevant documents found for this question.",
+            chunks_used=0,
+            retrieval_type=retrieval_type,
+            faithfulness=0.0,
+            answer_relevance=0.0,
+            context_precision=0.0,
+            overall_score=0.0,
+        )
+
     chunks = rerank(request.question, fused[:20], top_k=request.top_k)
 
     answer = generate_answer(request.question, chunks)

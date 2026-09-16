@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     DB_PASSWORD: str = ""
     DB_HOST: str = "localhost"
     DB_PORT: int = 5432
+    DB_SSLMODE: str = "require"
 
     # Neo4j
     NEO4J_URI: str = "bolt://localhost:7687"
@@ -17,7 +18,7 @@ class Settings(BaseSettings):
 
     # Groq
     GROQ_API_KEY: str = ""
-    LLM_MODEL: str = "llama-3.1-8b-instant"
+    LLM_MODEL: str = "openai/gpt-oss-20b"
 
     # Auth
     API_KEY: str = "change-me-in-production"

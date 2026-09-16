@@ -8,10 +8,10 @@ _datasets_available = False
 
 try:
     import ragas
-    from ragas.metrics import faithfulness, answer_relevancy, context_precision, context_recall
+    from ragas.metrics import faithfulness, answer_relevancy, context_precision
     RAGAS_AVAILABLE = True
-except ImportError:
-    logger.warning("ragas not installed. Install with: pip install ragas")
+except ImportError as e:
+    logger.warning(f"ragas metrics unavailable: {e}. Using semantic similarity fallback")
 
 try:
     from datasets import Dataset
@@ -64,10 +64,26 @@ def _fallback_evaluate(question: str, answer: str, contexts: list[str]) -> dict:
     return semantic_similarity_evaluate(question, answer, contexts)
 
 
+def _extract_result_row(result: Any) -> dict:
+    """Normalize RAGAS result objects across supported RAGAS releases."""
+    if isinstance(result, dict):
+        return result
+    try:
+        if hasattr(result, "to_pandas"):
+            frame = result.to_pandas()
+            if not frame.empty:
+                return frame.iloc[0].to_dict()
+    except Exception:
+        pass
+    try:
+        return result[0]
+    except Exception:
+        return {}
+
+
 def evaluate(question: str, answer: str, contexts: list[str], ground_truth: str = "") -> dict:
     """Evaluate answer quality using RAGAS, with a semantic-similarity fallback."""
     if not RAGAS_AVAILABLE:
-        logger.warning("ragas not installed, using semantic similarity fallback")
         return _fallback_evaluate(question, answer, contexts)
 
     if not _datasets_available:
@@ -92,9 +108,13 @@ def evaluate(question: str, answer: str, contexts: list[str], ground_truth: str 
             data["ground_truth"] = [ground_truth]
 
         dataset = Dataset.from_dict(data)
-        result = ragas_evaluate(dataset=dataset, metrics=[faithfulness, answer_relevancy, context_precision], llm=llm)
+        result = ragas_evaluate(
+            dataset=dataset,
+            metrics=[faithfulness, answer_relevancy, context_precision],
+            llm=llm,
+        )
 
-        row = result[0]
+        row = _extract_result_row(result)
         scores = {}
         for key in ["faithfulness", "answer_relevancy", "context_precision"]:
             val = row.get(key, 0.0)
@@ -140,11 +160,23 @@ def evaluate_batch(questions: list[str], answers: list[str], contexts_list: list
             llm=llm,
         )
 
+        rows = []
+        try:
+            if hasattr(result, "to_pandas"):
+                rows = result.to_pandas().to_dict(orient="records")
+            else:
+                rows = list(result)
+        except Exception:
+            rows = []
+
         scores = {"faithfulness": [], "answer_relevancy": [], "context_precision": []}
-        for row in result:
+        for row in rows:
             for key in scores:
                 val = row.get(key, 0.0)
                 scores[key].append(float(val) if val is not None else 0.0)
+
+        if not scores["faithfulness"]:
+            raise ValueError("RAGAS returned no evaluation rows")
 
         return {
             "count": len(questions),

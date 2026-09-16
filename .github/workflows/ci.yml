@@ -77,11 +77,26 @@ jobs:
           cur.execute('''CREATE TABLE IF NOT EXISTS document_sections (
               id BIGSERIAL PRIMARY KEY, content TEXT NOT NULL,
               meta JSONB, embedding VECTOR(384))''')
+          cur.execute('''CREATE TABLE IF NOT EXISTS search_analytics (
+              id BIGSERIAL PRIMARY KEY, question TEXT, retrieval_type VARCHAR(20),
+              chunks_used INT, latency_ms FLOAT, created_at TIMESTAMP DEFAULT NOW())''')
           conn.commit()
           cur.close()
           conn.close()
           print('Database initialized')
           "
+      - name: Seed test documents
+        env:
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_NAME: graphrag
+          DB_USER: postgres
+          DB_PASSWORD: postgres
+          NEO4J_URI: bolt://localhost:7687
+          NEO4J_USER: neo4j
+          NEO4J_PASSWORD: password
+        run: |
+          python scripts/seed_benchmark_data.py
       - name: Start API server
         run: |
           uvicorn app.main:app --host 0.0.0.0 --port 8000 &
@@ -150,7 +165,7 @@ jobs:
               'commit_sha': '${{ github.sha }}',
               'metrics': results['metrics'],
               'per_question': results.get('per_question', []),
-              'notes': f'Auto-updated after successful deploy'
+              'notes': 'Auto-updated after successful deploy'
           }
 
           with open('benchmark_baseline.json', 'w') as f:

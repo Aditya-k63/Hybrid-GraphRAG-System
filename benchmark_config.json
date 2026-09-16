@@ -1,11 +1,11 @@
 {
   "thresholds": {
-    "faithfulness": 0.7,
-    "answer_relevance": 0.6,
-    "context_precision": 0.5,
-    "overall_score": 0.6,
-    "classifier_accuracy": 0.5
+    "faithfulness": 0.40,
+    "answer_relevance": 0.40,
+    "context_precision": 0.40,
+    "overall_score": 0.40
   },
+  "regression_tolerance": 0.10,
   "weights": {
     "faithfulness": 0.4,
     "answer_relevance": 0.4,

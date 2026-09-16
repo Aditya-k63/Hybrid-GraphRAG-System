@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "last_updated": "2026-09-16",
+  "commit_sha": "initial",
+  "metrics": {
+    "faithfulness": 0.85,
+    "answer_relevance": 0.80,
+    "context_precision": 0.75,
+    "overall_score": 0.81,
+    "classifier_accuracy": 0.70
+  },
+  "per_question": [],
+  "notes": "Initial baseline — update after first successful run"
+}

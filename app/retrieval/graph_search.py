@@ -4,16 +4,17 @@ logger = logging.getLogger(__name__)
 
 
 def graph_retrieve(query: str, max_hops: int = 3) -> list[dict]:
-    """Retrieve from Neo4j knowledge graph with multi-hop traversal.
-
-    Supports multi-hop queries up to max_hops (default 3).
-    For multi-hop queries (e.g., 'Who founded the company that acquired X?'),
-    max_hops=2-3 follows relationship chains.
-    """
+    """Retrieve from Neo4j knowledge graph with multi-hop traversal."""
     try:
-        from app.graph import graph_search, get_entity_context
+        from app import graph as graph_module
         from app.ingestion.entity_extractor import extract_query_entities
         from app.retrieval.tracker import tracker
+
+        graph_search_fn = getattr(graph_module, "graph_search", None)
+        get_entity_context_fn = getattr(graph_module, "get_entity_context", None)
+        if not callable(graph_search_fn) or not callable(get_entity_context_fn):
+            logger.warning("Graph helpers unavailable; skipping graph retrieval")
+            return []
 
         entities = extract_query_entities(query)
         if not entities:
@@ -22,33 +23,31 @@ def graph_retrieve(query: str, max_hops: int = 3) -> list[dict]:
 
         logger.info(f"Query entities for graph (max_hops={max_hops}): {entities}")
 
-        graph_results = graph_search(entities, max_hops=max_hops)
-        context_texts = get_entity_context(entities)
+        graph_results = graph_search_fn(entities, max_hops=max_hops)
+        context_texts = get_entity_context_fn(entities)
 
         tracker.record("graph", 1)
 
         seen = set()
         results = []
-        for item in graph_results:
-            name = item["name"]
-            if name not in seen:
-                seen.add(name)
-                results.append({
-                    "content": f"{name} ({item['type']}): {item['description']}",
-                    "score": 1.0 / (1 + item["distance"]),
-                    "source": "graph",
-                    "entity": name,
-                    "hops": item.get("distance", 0),
-                })
+        for item in graph_results or []:
+            name = item.get("name")
+            if not name or name in seen:
+                continue
+            seen.add(name)
+            results.append({
+                "content": f"{name} ({item.get('type', 'Entity')}): {item.get('description', '')}",
+                "score": 1.0 / (1 + item.get("distance", 0)),
+                "source": "graph",
+                "entity": name,
+                "hops": item.get("distance", 0),
+            })
 
-        for ctx in context_texts:
+        for ctx in context_texts or []:
             first_line = ctx.split("|")[0].strip()
             if first_line not in seen:
-                results.append({
-                    "content": ctx,
-                    "score": 0.8,
-                    "source": "graph_context",
-                })
+                seen.add(first_line)
+                results.append({"content": ctx, "score": 0.8, "source": "graph_context"})
 
         logger.info(f"Graph retrieval returned {len(results)} results for {len(entities)} entities with {max_hops} hops")
         return results[:20]
@@ -58,15 +57,12 @@ def graph_retrieve(query: str, max_hops: int = 3) -> list[dict]:
 
 
 def multi_hop_query(query: str, hop_chain: list[str]) -> list[dict]:
-    """Execute a multi-hop query following a chain of entity types.
-
-    Example:
-        hop_chain = ["Person", "Organization", "Technology"]
-        This traverses from Person -> Organization -> Technology.
-    """
+    """Execute a multi-hop query following a chain of entity types."""
     try:
         from app.graph import get_driver
         driver = get_driver()
+        if not callable(getattr(driver, "session", None)):
+            return []
         results = []
         with driver.session() as session:
             for i, entity_type in enumerate(hop_chain):

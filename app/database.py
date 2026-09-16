@@ -16,7 +16,7 @@ def _get_conn_kwargs():
         "password": settings.DB_PASSWORD,
         "host": settings.DB_HOST,
         "port": settings.DB_PORT,
-        "sslmode": "require",
+        "sslmode": settings.DB_SSLMODE,
     }
 
 

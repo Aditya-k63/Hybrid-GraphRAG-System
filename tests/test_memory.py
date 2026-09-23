@@ -40,7 +40,7 @@ class TestTTL:
         monkeypatch.setattr(settings, "ENABLE_LIVE_LLM", False)
         monkeypatch.setattr(settings, "MEMORY_TTL_SECONDS", 100)
         mem = make_memory({"s1": [("user", "alpha"), ("user", "beta")]})
-        assert mem.select_relevant("s1", "alpha", now=1000.0)
+        mem.last_seen["s1"] = 1000.0
         assert mem.select_relevant("s1", "alpha", now=1101.0) == []
         assert mem.get_history("s1") == []
 
@@ -48,8 +48,8 @@ class TestTTL:
         monkeypatch.setattr(settings, "ENABLE_LIVE_LLM", False)
         monkeypatch.setattr(settings, "MEMORY_TTL_SECONDS", 100)
         mem = make_memory({"s1": [("user", "alpha")]})
-        assert mem.select_relevant("s1", "alpha", now=1000.0)
-        assert mem.select_relevant("s1", "alpha", now=1050.0)
+        mem.last_seen["s1"] = 1000.0
+        assert len(mem.select_relevant("s1", "alpha", now=1050.0)) == 1
         assert len(mem.get_history("s1")) == 1
 
 

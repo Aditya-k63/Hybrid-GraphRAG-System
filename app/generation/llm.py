@@ -1,5 +1,4 @@
 import logging
-import time
 
 logger = logging.getLogger(__name__)
 
@@ -58,27 +57,23 @@ def generate_answer(query: str, chunks: list[dict], conversation_history: list[d
         "content": f"Context:\n{context}\n\nQuestion: {query}\n\nAnswer:",
     })
 
-    for attempt in range(3):
-        try:
-            response = client.chat.completions.create(
-                model=settings.LLM_MODEL,
-                messages=messages,
-                temperature=0.2,
-                max_tokens=1024,
-            )
-            content = response.choices[0].message.content
-            if content and content.strip():
-                return content.strip()
-            logger.warning("LLM returned an empty response")
-        except Exception as e:
-            status = getattr(e, "status_code", None)
-            if status == 429 or "429" in str(e):
-                if attempt < 2:
-                    wait = 2 ** attempt
-                    logger.warning(f"LLM rate limited; retrying in {wait}s")
-                    time.sleep(wait)
-                    continue
-            logger.error(f"LLM generation failed: {e}")
-            return _fallback_answer(query, chunks)
+    from app.utils.retry import with_retry
 
-    return _fallback_answer(query, chunks)
+    @with_retry(max_attempts=3, base_delay=2.0)
+    def _completion() -> str:
+        response = client.chat.completions.create(
+            model=settings.LLM_MODEL,
+            messages=messages,
+            temperature=0.2,
+            max_tokens=1024,
+        )
+        content = response.choices[0].message.content
+        if not content or not content.strip():
+            raise ValueError("LLM returned an empty response")
+        return content.strip()
+
+    try:
+        return _completion()
+    except Exception as e:
+        logger.error(f"LLM generation failed: {e}")
+        return _fallback_answer(query, chunks)

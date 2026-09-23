@@ -322,9 +322,15 @@ async def query_endpoint(request: QueryRequest, raw_request: Request):
 
     history = []
     if request.session_id:
-        history = memory.get_history(request.session_id)
+        history = memory.select_relevant(request.session_id, request.question)
 
     answer = generate_answer(request.question, chunks, history)
+
+    verification = None
+    if answer:
+        from app.generation.verifier import verify_answer
+
+        verification = verify_answer(request.question, chunks, answer)
 
     if request.session_id:
         memory.add_message(request.session_id, "user", request.question)
@@ -344,6 +350,9 @@ async def query_endpoint(request: QueryRequest, raw_request: Request):
         "retrieval_type": retrieval_type,
         "sources": sources,
     }
+    if verification is not None:
+        result["verified"] = verification["grounded"]
+        result["confidence"] = verification["confidence"]
     query_cache[cache_key] = result
 
     if db_available():

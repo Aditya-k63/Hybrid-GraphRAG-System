@@ -14,6 +14,8 @@ class QueryResponse(BaseModel):
     chunks_used: int
     retrieval_type: str
     sources: list[str]
+    verified: bool | None = None
+    confidence: float | None = None
 
 
 class UploadResponse(BaseModel):

@@ -47,6 +47,28 @@ class Settings(BaseSettings):
     USE_SPACY: bool = True
     SPACY_MODEL: str = "en_core_web_sm"
 
+    # Entity extraction (structured output)
+    ENTITY_MAX_TEXT_CHARS: int = 6000
+    ENTITY_MAX_RETRIES: int = 3
+    ENTITY_RETRY_BACKOFF: float = 2.0
+    ENTITY_CIRCUIT_BREAKER_THRESHOLD: int = 3
+    ENTITY_CIRCUIT_BREAKER_COOLDOWN: int = 300
+    ENTITY_REQUIRE_DESCRIPTION: bool = True
+
+    # Conversation memory
+    MEMORY_SELECT_TOP_K: int = 6
+    MEMORY_MAX_CONTEXT_TOKENS: int = 2000
+    MEMORY_TTL_SECONDS: int = 3600
+
+    # Query classification (structured output)
+    CLASSIFIER_MAX_RETRIES: int = 3
+
+    # Answer verification (grounded-answer guard)
+    ANSWER_VERIFICATION_ENABLED: bool = True
+    VERIFY_MAX_RETRIES: int = 2
+    VERIFY_RETRY_BACKOFF: float = 2.0
+    VERIFY_MAX_CONTEXT_CHARS: int = 5000
+
     # Cache
     CACHE_MAX_SIZE: int = 200
 

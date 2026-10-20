@@ -1,7 +1,7 @@
 {
   "version": 1,
   "last_updated": "2026-10-20",
-  "commit_sha": "a00e288940f8ad9f0e5948a46b39f475ad2d530a",
+  "commit_sha": "a8ac4fba3e34c51e7fbf95c2ae97e06d5bd5c027",
   "metrics": {
     "faithfulness": 0.9633266666666667,
     "answer_relevance": 0.4962133333333333,

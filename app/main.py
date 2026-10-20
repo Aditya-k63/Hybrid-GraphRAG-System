@@ -476,6 +476,26 @@ async def evaluate_query(request: QueryRequest, raw_request: Request):
 
     fused = reciprocal_rank_fusion(all_results, k=settings.RRF_K)
 
+    if request.mode == "crag" and settings.ENABLE_CRAG:
+        from app.generation.corrective import run_corrective
+
+        outcome = run_corrective(
+            request.question,
+            top_k=request.top_k,
+            use_graph=request.use_graph,
+        )
+        chunks = outcome["chunks"]
+        answer = outcome["answer"]
+        chunks_text = [c["content"] for c in chunks]
+        metrics = evaluate(request.question, answer, chunks_text)
+        return EvaluatedQueryResponse(
+            question=request.question,
+            answer=answer,
+            chunks_used=len(chunks),
+            retrieval_type=outcome.get("retrieval_type", "crag"),
+            **metrics,
+        )
+
     if not fused:
         return EvaluatedQueryResponse(
             question=request.question,

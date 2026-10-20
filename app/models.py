@@ -6,6 +6,7 @@ class QueryRequest(BaseModel):
     top_k: int = 5
     session_id: str | None = None
     use_graph: bool = True
+    mode: str = "hybrid"
 
 
 class QueryResponse(BaseModel):
@@ -16,6 +17,9 @@ class QueryResponse(BaseModel):
     sources: list[str]
     verified: bool | None = None
     confidence: float | None = None
+    mode: str | None = None
+    used_web_fallback: bool | None = None
+    crag_grade: str | None = None
 
 
 class UploadResponse(BaseModel):

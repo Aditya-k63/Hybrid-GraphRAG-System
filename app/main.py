@@ -23,6 +23,7 @@ class QueryRequest(BaseModel):
     top_k: int = 5
     session_id: str | None = None
     use_graph: bool = True
+    mode: str = "hybrid"
 
 from app.retrieval.tracker import tracker, get_tracker_stats
 
@@ -259,6 +260,54 @@ async def upload_pdf(request: Request, file: UploadFile = File(...), force: bool
     )
 
 
+async def _crag_query(request: QueryRequest, run_corrective):
+    """Corrective RAG path: grade retrieved context, web-fallback on 'no'."""
+    from app.models import QueryResponse as QueryResponseModel
+    from app.memory.conversation import memory
+
+    start = time.time()
+    history = []
+    if request.session_id:
+        history = memory.select_relevant(request.session_id, request.question)
+
+    outcome = run_corrective(
+        request.question,
+        top_k=request.top_k,
+        use_graph=request.use_graph,
+        conversation_history=history,
+    )
+    answer = outcome["answer"]
+    chunks = outcome["chunks"]
+
+    if request.session_id:
+        memory.add_message(request.session_id, "user", request.question)
+        memory.add_message(request.session_id, "assistant", answer)
+
+    sources = []
+    for chunk in chunks:
+        meta = chunk.get("meta")
+        if isinstance(meta, dict) and meta.get("source"):
+            if meta["source"] not in sources:
+                sources.append(meta["source"])
+
+    latency_ms = round((time.time() - start) * 1000, 1)
+    logger.info(
+        f"CRAG grade='{outcome['grade']}' web_fallback={outcome['used_web']} "
+        f"served in {latency_ms}ms"
+    )
+
+    return QueryResponseModel(
+        question=request.question,
+        answer=answer,
+        chunks_used=len(chunks),
+        retrieval_type=outcome.get("retrieval_type", "crag"),
+        sources=sources,
+        mode="crag",
+        used_web_fallback=outcome["used_web"],
+        crag_grade=outcome.get("grade"),
+    )
+
+
 @app.post("/query")
 async def query_endpoint(request: QueryRequest, raw_request: Request):
     from app.auth import check_api_key
@@ -279,9 +328,19 @@ async def query_endpoint(request: QueryRequest, raw_request: Request):
     if not request.question.strip():
         raise HTTPException(status_code=400, detail="Question cannot be empty")
 
-    cache_key = f"{request.question.strip().lower()}::{request.top_k}::{request.use_graph}"
+    cache_key = f"{request.question.strip().lower()}::{request.top_k}::{request.use_graph}::{request.mode}"
     if cache_key in query_cache:
         return QueryResponse(**query_cache[cache_key])
+
+    if request.mode == "crag":
+        if not settings.ENABLE_CRAG:
+            logger.warning(
+                "mode='crag' requested but ENABLE_CRAG is false; "
+                "falling back to the default hybrid pipeline"
+            )
+        else:
+            from app.generation.corrective import run_corrective
+            return _crag_query(request, run_corrective)
 
     classification = classify_query(request.question)
     retrieval_type = classification["type"]

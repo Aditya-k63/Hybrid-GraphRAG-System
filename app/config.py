@@ -83,6 +83,10 @@ class Settings(BaseSettings):
     # Latency tracking
     ENABLE_LATENCY_TRACKING: bool = True
 
+    # Corrective RAG (mode: "crag")
+    ENABLE_CRAG: bool = False
+    CRAG_WEB_RESULTS: int = 5
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

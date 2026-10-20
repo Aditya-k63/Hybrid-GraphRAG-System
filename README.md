@@ -8,6 +8,47 @@ The project also includes API authentication, rate limiting, query caching, conv
 
 ---
 
+## What's new in v4 — the corrective layer is merged in
+
+The system we started with could find information. The system we have now can also **tell when its search failed** — and do something about it.
+
+That upgrade is CRAG (Corrective RAG), merged in from its own chapter of this journey: before answering, an agent **grades** the retrieved context with a yes/no LLM check. If the grade is "no", it doesn't guess — it falls back to live web search, then answers from that instead. It crime-runs as an opt-in query mode, so the default pipeline that every benchmark is built on stays byte-for-byte untouched.
+
+**How to use it**
+
+```env
+ENABLE_CRAG=true                 # .env — off by default, CI stays deterministic
+```
+
+```json
+POST /query
+{ "question": "How is NASA's JPL connected to the Voyager missions?",
+  "mode": "crag" }
+```
+
+Every answer in crag mode tells you what happened: `crag_grade` (yes/no), `used_web_fallback` (did the correction fire?), plus the usual sources.
+
+**Did it help? We measured it — same golden dataset, both modes, live LLM**
+
+| Bucket | Metric | default (hybrid) | `mode: "crag"` | change |
+|---|---|---|---|---|
+| Answerable (15 golden) | faithfulness | 0.9633 | 0.9695 | +0.0062 |
+| | answer_relevance | 0.4962 | **0.6967** | **+0.2005** |
+| | overall_score | 0.7765 | **0.8603** | **+0.0838** |
+| Unanswerable (5 out-of-KB) | answer_relevance | 0.0440 | **0.6938** | **+0.6498** |
+| | overall_score | 0.5933 | **0.8627** | **+0.2694** |
+
+Read the second block the way it deserves: on questions the knowledge base cannot answer, the default pipeline gave a relevance-collapsed refusal (0.0440) — the CRAG mode recognized the knowledge gap, searched the web, and delivered a genuinely relevant answer (0.6938). Meanwhile the regression gate confirmed **no metric regressed** on the questions the KB *can* answer.
+
+You can reproduce the experiment with one command:
+
+```bash
+python scripts/run_crag_comparison.py --base-url http://127.0.0.1:8000
+python scripts/compare_baseline.py --candidate benchmark_results_crag.json
+```
+
+The measured trade-off, reported honestly: crag mode costs roughly 2x latency per query (the grading step plus possible web fallback), 4-5s → 10-14s. Judgment is not free — but it is now measurable, and it passed the gate.
+
 ## Architecture
 
 ```text

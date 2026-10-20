@@ -631,35 +631,6 @@ The system includes authentication, rate limiting, caching, analytics, container
 
 ---
 
-## Project Status
-
-| Capability | Status |
-|---|---|
-| PDF ingestion | Implemented |
-| Semantic chunking | Implemented |
-| Embedding generation | Implemented |
-| PostgreSQL + pgvector | Implemented |
-| Neo4j knowledge graph | Implemented |
-| BM25 retrieval | Implemented |
-| Hybrid retrieval / RRF | Implemented |
-| Cross-encoder reranking | Implemented |
-| Query classification | Implemented |
-| Multi-hop graph retrieval | Implemented |
-| LLM generation | Implemented |
-| Source citations | Implemented |
-| Conversation memory | Implemented |
-| RAGAS evaluation | Implemented |
-| Evaluation fallback | Implemented |
-| API authentication | Implemented |
-| Rate limiting | Implemented |
-| Query caching | Implemented |
-| Search analytics | Implemented |
-| Docker Compose | Implemented |
-| Automated tests | Implemented |
-| GitHub Actions CI/CD | Implemented |
-
----
-
 ## Author
 
 **Aditya Kumar**

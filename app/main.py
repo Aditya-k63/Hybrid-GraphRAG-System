@@ -260,7 +260,7 @@ async def upload_pdf(request: Request, file: UploadFile = File(...), force: bool
     )
 
 
-async def _crag_query(request: QueryRequest, run_corrective) -> QueryResponse:
+async def _crag_query(request: QueryRequest, run_corrective):
     """Corrective RAG path: grade retrieved context, web-fallback on 'no'."""
     from app.models import QueryResponse as QueryResponseModel
     from app.memory.conversation import memory
